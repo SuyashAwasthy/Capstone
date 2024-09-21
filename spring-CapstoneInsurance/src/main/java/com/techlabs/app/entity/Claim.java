@@ -97,134 +97,132 @@ import java.time.LocalDateTime;
 public
 
 class Claim {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  private Long id;
-  @NotNull
-  @PositiveOrZero(message = "Amount must be a non-negative number")
-  @Column(nullable = false)
-  private Double claimAmount;
-  @NotBlank
-  @Column(nullable = false)
-  private String bankName;
-  @NotBlank
-  @Column(nullable = false)
-  private String branchName;
-  @NotBlank
-  @Column(nullable = false)
-  private String bankAccountId;
-  @NotBlank
-  @Column(nullable = false)
-  private String ifscCode;
-  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-  private LocalDateTime date = LocalDateTime.now();
-  
-  private String claimedStatus = ClaimStatus.PENDING.name();
-  
-  @Column(name="is_cancel", nullable=false)
-  private boolean isCancel;
-  @OneToOne
-  @JoinColumn(name = "policyId")
-  @JsonIgnore
-  private InsurancePolicy policy;
-  
-  @ManyToOne(cascade = CascadeType.ALL)
-  @JoinColumn(name = "agentId")
-  private Agent agent;
-  
-  public long getClaimId() {
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+	@NotNull
+	@PositiveOrZero(message = "Amount must be a non-negative number")
+	@Column(nullable = false)
+	private Double claimAmount;
+	@NotBlank
+	@Column(nullable = false)
+	private String bankName;
+	@NotBlank
+	@Column(nullable = false)
+	private String branchName;
+	@NotBlank
+	@Column(nullable = false)
+	private String bankAccountId;
+	@NotBlank
+	@Column(nullable = false)
+	private String ifscCode;
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+	private LocalDateTime date = LocalDateTime.now();
+
+	private String claimedStatus = ClaimStatus.PENDING.name();
+
+	@Column(name = "is_cancel", nullable = false)
+	private boolean isCancel;
+	@OneToOne
+	@JoinColumn(name = "policyId")
+	@JsonIgnore
+	private InsurancePolicy policy;
+
+	@ManyToOne(cascade = CascadeType.ALL)
+	@JoinColumn(name = "agentId")
+	private Agent agent;
+
+	public long getClaimId() {
 		// TODO Auto-generated method stub
 		return id;
 	}
 
-public Long getId() {
-	return id;
-}
+	public Long getId() {
+		return id;
+	}
 
-public void setId(Long id) {
-	this.id = id;
-}
+	public void setId(Long id) {
+		this.id = id;
+	}
 
-public Double getClaimAmount() {
-	return claimAmount;
-}
+	public Double getClaimAmount() {
+		return claimAmount;
+	}
 
-public void setClaimAmount(Double claimAmount) {
-	this.claimAmount = claimAmount;
-}
+	public void setClaimAmount(Double claimAmount) {
+		this.claimAmount = claimAmount;
+	}
 
-public String getBankName() {
-	return bankName;
-}
+	public String getBankName() {
+		return bankName;
+	}
 
-public void setBankName(String bankName) {
-	this.bankName = bankName;
-}
+	public void setBankName(String bankName) {
+		this.bankName = bankName;
+	}
 
-public String getBranchName() {
-	return branchName;
-}
+	public String getBranchName() {
+		return branchName;
+	}
 
-public void setBranchName(String branchName) {
-	this.branchName = branchName;
-}
+	public void setBranchName(String branchName) {
+		this.branchName = branchName;
+	}
 
-public String getBankAccountId() {
-	return bankAccountId;
-}
+	public String getBankAccountId() {
+		return bankAccountId;
+	}
 
-public void setBankAccountId(String bankAccountId) {
-	this.bankAccountId = bankAccountId;
-}
+	public void setBankAccountId(String bankAccountId) {
+		this.bankAccountId = bankAccountId;
+	}
 
-public String getIfscCode() {
-	return ifscCode;
-}
+	public String getIfscCode() {
+		return ifscCode;
+	}
 
-public void setIfscCode(String ifscCode) {
-	this.ifscCode = ifscCode;
-}
+	public void setIfscCode(String ifscCode) {
+		this.ifscCode = ifscCode;
+	}
 
-public LocalDateTime getDate() {
-	return date;
-}
+	public LocalDateTime getDate() {
+		return date;
+	}
 
-public void setDate(LocalDateTime date) {
-	this.date = date;
-}
+	public void setDate(LocalDateTime date) {
+		this.date = date;
+	}
 
-public String getClaimedStatus() {
-	return claimedStatus;
-}
+	public String getClaimedStatus() {
+		return claimedStatus;
+	}
 
-public void setClaimedStatus(String claimedStatus) {
-	this.claimedStatus = claimedStatus;
-}
+	public void setClaimedStatus(String claimedStatus) {
+		this.claimedStatus = claimedStatus;
+	}
 
-public boolean isCancel() {
-	return isCancel;
-}
+	public boolean isCancel() {
+		return isCancel;
+	}
 
-public void setCancel(boolean isCancel) {
-	this.isCancel = isCancel;
-}
+	public void setCancel(boolean isCancel) {
+		this.isCancel = isCancel;
+	}
 
-public InsurancePolicy getPolicy() {
-	return policy;
-}
+	public InsurancePolicy getPolicy() {
+		return policy;
+	}
 
-public void setPolicy(InsurancePolicy policy) {
-	this.policy = policy;
-}
+	public void setPolicy(InsurancePolicy policy) {
+		this.policy = policy;
+	}
 
-public Agent getAgent() {
-	return agent;
-}
+	public Agent getAgent() {
+		return agent;
+	}
 
-public void setAgent(Agent agent) {
-	this.agent = agent;
+	public void setAgent(Agent agent) {
+		this.agent = agent;
+	}
+
 }
-  
-  
-}
-  

@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -26,12 +27,14 @@ import com.techlabs.app.entity.City;
 import com.techlabs.app.entity.Claim;
 import com.techlabs.app.entity.ClaimStatus;
 import com.techlabs.app.entity.Customer;
+import com.techlabs.app.entity.DocumentStatus;
 import com.techlabs.app.entity.InsurancePolicy;
 import com.techlabs.app.entity.InsuranceScheme;
 import com.techlabs.app.entity.Nominee;
 import com.techlabs.app.entity.PolicyStatus;
 import com.techlabs.app.entity.PremiumType;
 import com.techlabs.app.entity.Role;
+import com.techlabs.app.entity.SchemeDocument;
 import com.techlabs.app.entity.SubmittedDocument;
 import com.techlabs.app.entity.User;
 import com.techlabs.app.exception.APIException;
@@ -78,19 +81,18 @@ public class CustomerServiceImpl implements CustomerService {
 
 	@Autowired
 	private InsurancePolicyRepository insurancePolicyRepository;
-	
+
 	@Autowired
 	private NomineeRepository nomineeRepository;
-	
+
 	@Autowired
 	private ClaimRepository claimRepository;
-	
+
 	@Autowired
-private DocumentRepository documentRepository;
-	
+	private DocumentRepository documentRepository;
+
 	@Autowired
 	private KeyValueRepository keyValueRepository;
-	
 
 	public CustomerServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
 			CustomerRepository customerRepository, CityRepository cityRepository, PasswordEncoder passwordEncoder,
@@ -180,7 +182,7 @@ private DocumentRepository documentRepository;
 		policy.setMaturityDate(insurancePolicyDto.getMaturityDate());
 		policy.setPremiumAmount(insurancePolicyDto.getPremiumAmount());
 		policy.setPolicyStatus(insurancePolicyDto.getPolicyStatus());
-	//	policy.setActive(insurancePolicyDto.isActive());
+		// policy.setActive(insurancePolicyDto.isActive());
 
 		// Fetch and set associated InsuranceScheme entity
 		InsuranceScheme scheme = insuranceSchemeRepository.findById(insurancePolicyDto.getInsuranceSchemeId())
@@ -250,106 +252,106 @@ private DocumentRepository documentRepository;
 //		return "Query has been successfully created for customer ID " + customerId + ".";
 //	}
 // ---------------------------------
-	@Override
-	public String buyPolicy(InsurancePolicyDto accountRequestDto, long customerId) {
-		
-		if (accountRequestDto.getInsuranceSchemeId() == null) {
-	        throw new APIException(HttpStatus.BAD_REQUEST, "Insurance scheme ID must not be null");
-	    }
-
-	    InsuranceScheme insuranceScheme = insuranceSchemeRepository.findById(accountRequestDto.getInsuranceSchemeId())
-	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
-	            "Sorry, we couldn't find a scheme with ID: " + accountRequestDto.getInsuranceSchemeId()));
-
-	    Customer customer = customerRepository.findById(customerId)
-	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
-	            "Sorry, we couldn't find a customer with ID: " + customerId));
-
-	    Agent agent = agentRepository.findById(accountRequestDto.getAgentId())
-	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
-	            "Sorry, we couldn't find an agent with ID: " + accountRequestDto.getAgentId()));
-
-	    // Create a new InsurancePolicy and set its properties
-	    InsurancePolicy insurancePolicy = new InsurancePolicy();
-
-	    insurancePolicy.getCustomers().add(customer);
-	    
-	    insurancePolicy.setAgent(agent);
-
-	    insurancePolicy.setPolicyTerm(accountRequestDto.getPolicyTerm());
-	    insurancePolicy.setPremiumAmount(accountRequestDto.getPremiumAmount());
-	    insurancePolicy.setIssuedDate(LocalDate.now()); // Assuming issued date is set to the current date
-	    insurancePolicy.setMaturityDate(insurancePolicy.getIssuedDate().plusYears(accountRequestDto.getPolicyTerm()));
-	    insurancePolicy.setInstallmentPeriod(accountRequestDto.getInstallmentPeriod());
-	    insurancePolicy.setRegisteredCommission(insuranceScheme.getNewRegistrationCommission());
-	    insurancePolicy.setInsuranceScheme(insuranceScheme);
-	    insurancePolicy.setActive(true);
-	    
-	    
-	    //handle nominees
-	    if (accountRequestDto.getNominees() != null && !accountRequestDto.getNominees().isEmpty()) {
-	    	System.out.println("checking for nominees---------------------------------------------------");
-	        List<Nominee> nominees = new ArrayList<>();
-	    //    for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
-	        for(NomineeDto nomineeDto:accountRequestDto.getNominees()) {
-	            Nominee nominee = new Nominee();
-	            nominee.setNomineeName(nomineeDto.getNomineeName());
-	            nominee.setRelationStatus(nomineeDto.getRelationStatus());
-	            
-	           nominee =nomineeRepository.save(nominee);
-	            nominees.add(nominee);
-	            
-	        	//InsuranceScheme nominee=nomineeRepository.findById(nomineeId).orElseThrow(()->new APIException(HttpStatus.NOT_FOUND,"nominee not found withID: "+nomineeId));
-	        }
-	        insurancePolicy.setNominees(nominees);
-	        System.out.println(nominees);// Add nominees to the policy
-	    }
-	    
-	    double totalCommission = agent.getTotalCommission() + insurancePolicy.getRegisteredCommission();
-	    agent.setTotalCommission(totalCommission);
-	    
-	    // Calculate the sum assured based on the profit ratio
-	    double sumAssured = (insurancePolicy.getPremiumAmount() * (insuranceScheme.getProfitRatio() / 100))
-	        + insurancePolicy.getPremiumAmount();
-	    insurancePolicy.setClaimAmount(sumAssured);
-	    insurancePolicy.setPolicyStatus(PolicyStatus.ACTIVE.name());
-
-	    // Determine the number of months based on the premium type
-	    long months= accountRequestDto.getInstallmentPeriod();
-	// Calculate the total number of months and the installment amount
-	    long totalMonths = insurancePolicy.getPolicyTerm() * 12 / months;
-	    double installmentAmount = insurancePolicy.getPremiumAmount() / totalMonths;
-	    insurancePolicy.setInstallmentPayment(installmentAmount);
-	    insurancePolicy.setTotalAmountPaid(0.0);
-	    
-	 // Handle Documents
-	      if (accountRequestDto.getDocuments() != null && !accountRequestDto.getDocuments().isEmpty()) {
-	          Set<SubmittedDocument> documents = new HashSet<>();
-	          for (SubmittedDocumentDto documentDto : accountRequestDto.getDocuments()) {
-	              SubmittedDocument document = new SubmittedDocument();
-	              document.setDocumentName(documentDto.getDocumentName());
-	              document.setDocumentStatus(documentDto.getDocumentStatus()); // Setting document status
-	              document.setDocumentImage(documentDto.getDocumentImage()); // Setting document image
-	              documentRepository.save(document); // Save the new document to the repository
-	              documents.add(document);
-	          }
-	          insurancePolicy.setDocuments(documents);
-	      } else {
-	          throw new APIException(HttpStatus.NOT_FOUND, "No documents provided in the request");
-	      }
-
-	      // Save the insurance policy to the repository
-	      insurancePolicyRepository.save(insurancePolicy);
-
-	      // Update the customer's list of policies
-	      customer.getInsurancePolicies().add(insurancePolicy);
-	      customerRepository.save(customer);
-
-	    // Save the insurance policy to the repository
-	    insurancePolicyRepository.save(insurancePolicy);
-
-	    return "Policy has been successfully created for customer ID " + customerId + ".";
-	  }
+//	@Override
+//	public String buyPolicy(InsurancePolicyDto accountRequestDto, long customerId) {
+//		
+//		if (accountRequestDto.getInsuranceSchemeId() == null) {
+//	        throw new APIException(HttpStatus.BAD_REQUEST, "Insurance scheme ID must not be null");
+//	    }
+//
+//	    InsuranceScheme insuranceScheme = insuranceSchemeRepository.findById(accountRequestDto.getInsuranceSchemeId())
+//	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+//	            "Sorry, we couldn't find a scheme with ID: " + accountRequestDto.getInsuranceSchemeId()));
+//
+//	    Customer customer = customerRepository.findById(customerId)
+//	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+//	            "Sorry, we couldn't find a customer with ID: " + customerId));
+//
+//	    Agent agent = agentRepository.findById(accountRequestDto.getAgentId())
+//	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+//	            "Sorry, we couldn't find an agent with ID: " + accountRequestDto.getAgentId()));
+//
+//	    // Create a new InsurancePolicy and set its properties
+//	    InsurancePolicy insurancePolicy = new InsurancePolicy();
+//
+//	    insurancePolicy.getCustomers().add(customer);
+//	    
+//	    insurancePolicy.setAgent(agent);
+//
+//	    insurancePolicy.setPolicyTerm(accountRequestDto.getPolicyTerm());
+//	    insurancePolicy.setPremiumAmount(accountRequestDto.getPremiumAmount());
+//	    insurancePolicy.setIssuedDate(LocalDate.now()); // Assuming issued date is set to the current date
+//	    insurancePolicy.setMaturityDate(insurancePolicy.getIssuedDate().plusYears(accountRequestDto.getPolicyTerm()));
+//	    insurancePolicy.setInstallmentPeriod(accountRequestDto.getInstallmentPeriod());
+//	    insurancePolicy.setRegisteredCommission(insuranceScheme.getNewRegistrationCommission());
+//	    insurancePolicy.setInsuranceScheme(insuranceScheme);
+//	    insurancePolicy.setActive(true);
+//	    
+//	    
+//	    //handle nominees
+//	    if (accountRequestDto.getNominees() != null && !accountRequestDto.getNominees().isEmpty()) {
+//	    	System.out.println("checking for nominees---------------------------------------------------");
+//	        List<Nominee> nominees = new ArrayList<>();
+//	    //    for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
+//	        for(NomineeDto nomineeDto:accountRequestDto.getNominees()) {
+//	            Nominee nominee = new Nominee();
+//	            nominee.setNomineeName(nomineeDto.getNomineeName());
+//	            nominee.setRelationStatus(nomineeDto.getRelationStatus());
+//	            
+//	           nominee =nomineeRepository.save(nominee);
+//	            nominees.add(nominee);
+//	            
+//	        	//InsuranceScheme nominee=nomineeRepository.findById(nomineeId).orElseThrow(()->new APIException(HttpStatus.NOT_FOUND,"nominee not found withID: "+nomineeId));
+//	        }
+//	        insurancePolicy.setNominees(nominees);
+//	        System.out.println(nominees);// Add nominees to the policy
+//	    }
+//	    
+//	    double totalCommission = agent.getTotalCommission() + insurancePolicy.getRegisteredCommission();
+//	    agent.setTotalCommission(totalCommission);
+//	    
+//	    // Calculate the sum assured based on the profit ratio
+//	    double sumAssured = (insurancePolicy.getPremiumAmount() * (insuranceScheme.getProfitRatio() / 100))
+//	        + insurancePolicy.getPremiumAmount();
+//	    insurancePolicy.setClaimAmount(sumAssured);
+//	    insurancePolicy.setPolicyStatus(PolicyStatus.ACTIVE.name());
+//
+//	    // Determine the number of months based on the premium type
+//	    long months= accountRequestDto.getInstallmentPeriod();
+//	// Calculate the total number of months and the installment amount
+//	    long totalMonths = insurancePolicy.getPolicyTerm() * 12 / months;
+//	    double installmentAmount = insurancePolicy.getPremiumAmount() / totalMonths;
+//	    insurancePolicy.setInstallmentPayment(installmentAmount);
+//	    insurancePolicy.setTotalAmountPaid(0.0);
+//	    
+//	 // Handle Documents
+//	      if (accountRequestDto.getDocuments() != null && !accountRequestDto.getDocuments().isEmpty()) {
+//	          Set<SubmittedDocument> documents = new HashSet<>();
+//	          for (SubmittedDocumentDto documentDto : accountRequestDto.getDocuments()) {
+//	              SubmittedDocument document = new SubmittedDocument();
+//	              document.setDocumentName(documentDto.getDocumentName());
+//	              document.setDocumentStatus(documentDto.getDocumentStatus()); // Setting document status
+//	              document.setDocumentImage(documentDto.getDocumentImage()); // Setting document image
+//	              documentRepository.save(document); // Save the new document to the repository
+//	              documents.add(document);
+//	          }
+//	          insurancePolicy.setDocuments(documents);
+//	      } else {
+//	          throw new APIException(HttpStatus.NOT_FOUND, "No documents provided in the request");
+//	      }
+//
+//	      // Save the insurance policy to the repository
+//	      insurancePolicyRepository.save(insurancePolicy);
+//
+//	      // Update the customer's list of policies
+//	      customer.getInsurancePolicies().add(insurancePolicy);
+//	      customerRepository.save(customer);
+//
+//	    // Save the insurance policy to the repository
+//	    insurancePolicyRepository.save(insurancePolicy);
+//
+//	    return "Policy has been successfully created for customer ID " + customerId + ".";
+//	  }
 // --------------------------
 //	@Override
 //	  @Transactional
@@ -439,137 +441,135 @@ private DocumentRepository documentRepository;
 //
 //	      return "Policy has been successfully created for customer ID " + customerId + ".";
 //	  }
-	
+
 	@Override
 	public String buyPolicyWithoutAgent(InsurancePolicyDto accountRequestDto, long customerId) {
 		System.out.println("c---------------------------------------------------");
-	    if (accountRequestDto.getInsuranceSchemeId() == null) {
-	        throw new APIException(HttpStatus.BAD_REQUEST, "Insurance scheme ID must not be null");
-	    }
+		if (accountRequestDto.getInsuranceSchemeId() == null) {
+			throw new APIException(HttpStatus.BAD_REQUEST, "Insurance scheme ID must not be null");
+		}
 
-	    InsuranceScheme insuranceScheme = insuranceSchemeRepository.findById(accountRequestDto.getInsuranceSchemeId())
-	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
-	            "Sorry, we couldn't find a scheme with ID: " + accountRequestDto.getInsuranceSchemeId()));
+		InsuranceScheme insuranceScheme = insuranceSchemeRepository.findById(accountRequestDto.getInsuranceSchemeId())
+				.orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+						"Sorry, we couldn't find a scheme with ID: " + accountRequestDto.getInsuranceSchemeId()));
 
-	    Customer customer = customerRepository.findById(customerId)
-	        .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
-	            "Sorry, we couldn't find a customer with ID: " + customerId));
+		Customer customer = customerRepository.findById(customerId)
+				.orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+						"Sorry, we couldn't find a customer with ID: " + customerId));
 
-	    // Create a new InsurancePolicy and set its properties
-	    InsurancePolicy insurancePolicy = new InsurancePolicy();
+		// Create a new InsurancePolicy and set its properties
+		InsurancePolicy insurancePolicy = new InsurancePolicy();
 
-	    insurancePolicy.getCustomers().add(customer);
+		insurancePolicy.getCustomers().add(customer);
 
-	    // Since there's no agent, set a default or null value for agent
-	    insurancePolicy.setAgent(null);
+		// Since there's no agent, set a default or null value for agent
+		insurancePolicy.setAgent(null);
 
-	    insurancePolicy.setPolicyTerm(accountRequestDto.getPolicyTerm());
-	    insurancePolicy.setPremiumAmount(accountRequestDto.getPremiumAmount());
-	    insurancePolicy.setIssuedDate(LocalDate.now()); // Assuming issued date is set to the current date
-	    insurancePolicy.setMaturityDate(insurancePolicy.getIssuedDate().plusYears(accountRequestDto.getPolicyTerm()));
-	    insurancePolicy.setInstallmentPeriod(accountRequestDto.getInstallmentPeriod());
-	    insurancePolicy.setRegisteredCommission(0.0); // No commission for policies bought without an agent
-	    insurancePolicy.setInsuranceScheme(insuranceScheme);
-	    System.out.println("ppp------");
-	    if (accountRequestDto.getNominees() != null && !accountRequestDto.getNominees().isEmpty()) {
-	    	System.out.println("checking for nominees---------------------------------------------------");
-	        List<Nominee> nominees = new ArrayList<>();
-	    //    for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
-	        for(NomineeDto nomineeDto:accountRequestDto.getNominees()) {
-	            Nominee nominee = new Nominee();
-	            nominee.setNomineeName(nomineeDto.getNomineeName());
-	            nominee.setRelationStatus(nomineeDto.getRelationStatus());
-	            
-	           nominee =nomineeRepository.save(nominee);
-	            nominees.add(nominee);
-	            
-	        	//InsuranceScheme nominee=nomineeRepository.findById(nomineeId).orElseThrow(()->new APIException(HttpStatus.NOT_FOUND,"nominee not found withID: "+nomineeId));
-	        }
-	        insurancePolicy.setNominees(nominees);
-	        System.out.println(nominees);// Add nominees to the policy
-	    }
-		   
-	    
+		insurancePolicy.setPolicyTerm(accountRequestDto.getPolicyTerm());
+		insurancePolicy.setPremiumAmount(accountRequestDto.getPremiumAmount());
+		insurancePolicy.setIssuedDate(LocalDate.now()); // Assuming issued date is set to the current date
+		insurancePolicy.setMaturityDate(insurancePolicy.getIssuedDate().plusYears(accountRequestDto.getPolicyTerm()));
+		insurancePolicy.setInstallmentPeriod(accountRequestDto.getInstallmentPeriod());
+		insurancePolicy.setRegisteredCommission(0.0); // No commission for policies bought without an agent
+		insurancePolicy.setInsuranceScheme(insuranceScheme);
+		System.out.println("ppp------");
+		if (accountRequestDto.getNominees() != null && !accountRequestDto.getNominees().isEmpty()) {
+			System.out.println("checking for nominees---------------------------------------------------");
+			List<Nominee> nominees = new ArrayList<>();
+			// for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
+			for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
+				Nominee nominee = new Nominee();
+				nominee.setNomineeName(nomineeDto.getNomineeName());
+				nominee.setRelationStatus(nomineeDto.getRelationStatus());
 
-	    // Calculate the sum assured based on the profit ratio
-	    double sumAssured = (insurancePolicy.getPremiumAmount() * (insuranceScheme.getProfitRatio() / 100))
-	        + insurancePolicy.getPremiumAmount();
-	    insurancePolicy.setClaimAmount(sumAssured);
-	    insurancePolicy.setPolicyStatus(PolicyStatus.ACTIVE.name());
+				nominee = nomineeRepository.save(nominee);
+				nominees.add(nominee);
 
-	    // Determine the number of months based on the premium type
-	    long months = accountRequestDto.getInstallmentPeriod();
-	    // Calculate the total number of months and the installment amount
-	    long totalMonths = insurancePolicy.getPolicyTerm() * 12 / months;
-	    double installmentAmount = insurancePolicy.getPremiumAmount() / totalMonths;
-	    insurancePolicy.setInstallmentPayment(installmentAmount);
-	    insurancePolicy.setTotalAmountPaid(0.0);
-	    
-	 // Handle Documents
-	      if (accountRequestDto.getDocuments() != null && !accountRequestDto.getDocuments().isEmpty()) {
-	          Set<SubmittedDocument> documents = new HashSet<>();
-	          for (SubmittedDocumentDto documentDto : accountRequestDto.getDocuments()) {
-	              SubmittedDocument document = new SubmittedDocument();
-	              document.setDocumentName(documentDto.getDocumentName());
-	              document.setDocumentStatus(documentDto.getDocumentStatus()); // Setting document status
-	              document.setDocumentImage(documentDto.getDocumentImage()); // Setting document image
-	              documentRepository.save(document); // Save the new document to the repository
-	              documents.add(document);
-	          }
-	          insurancePolicy.setDocuments(documents);
-	      } else {
-	          throw new APIException(HttpStatus.NOT_FOUND, "No documents provided in the request");
-	      }
+				// InsuranceScheme
+				// nominee=nomineeRepository.findById(nomineeId).orElseThrow(()->new
+				// APIException(HttpStatus.NOT_FOUND,"nominee not found withID: "+nomineeId));
+			}
+			insurancePolicy.setNominees(nominees);
+			System.out.println(nominees);// Add nominees to the policy
+		}
 
-	      // Save the insurance policy to the repository
-	      insurancePolicyRepository.save(insurancePolicy);
+		// Calculate the sum assured based on the profit ratio
+		double sumAssured = (insurancePolicy.getPremiumAmount() * (insuranceScheme.getProfitRatio() / 100))
+				+ insurancePolicy.getPremiumAmount();
+		insurancePolicy.setClaimAmount(sumAssured);
+		insurancePolicy.setPolicyStatus(PolicyStatus.ACTIVE.name());
 
-	      // Update the customer's list of policies
-	      customer.getInsurancePolicies().add(insurancePolicy);
-	      customerRepository.save(customer);
+		// Determine the number of months based on the premium type
+		long months = accountRequestDto.getInstallmentPeriod();
+		// Calculate the total number of months and the installment amount
+		long totalMonths = insurancePolicy.getPolicyTerm() * 12 / months;
+		double installmentAmount = insurancePolicy.getPremiumAmount() / totalMonths;
+		insurancePolicy.setInstallmentPayment(installmentAmount);
+		insurancePolicy.setTotalAmountPaid(0.0);
 
-	    // Save the insurance policy to the repository
-	    insurancePolicyRepository.save(insurancePolicy);
+		// Handle Documents
+		if (accountRequestDto.getDocuments() != null && !accountRequestDto.getDocuments().isEmpty()) {
+			Set<SubmittedDocument> documents = new HashSet<>();
+			for (SubmittedDocumentDto documentDto : accountRequestDto.getDocuments()) {
+				SubmittedDocument document = new SubmittedDocument();
+				document.setDocumentName(documentDto.getDocumentName());
+				document.setDocumentStatus(documentDto.getDocumentStatus()); // Setting document status
+				document.setDocumentImage(documentDto.getDocumentImage()); // Setting document image
+				documentRepository.save(document); // Save the new document to the repository
+				documents.add(document);
+			}
+			insurancePolicy.setDocuments(documents);
+		} else {
+			throw new APIException(HttpStatus.NOT_FOUND, "No documents provided in the request");
+		}
 
-	    return "Policy has been successfully created for customer ID " + customerId + " without an agent.";
-	
-	 
+		// Save the insurance policy to the repository
+		insurancePolicyRepository.save(insurancePolicy);
 
-}
+		// Update the customer's list of policies
+		customer.getInsurancePolicies().add(insurancePolicy);
+		customerRepository.save(customer);
+
+		// Save the insurance policy to the repository
+		insurancePolicyRepository.save(insurancePolicy);
+
+		return "Policy has been successfully created for customer ID " + customerId + " without an agent.";
+
+	}
 
 	@Override
 	public String claimPolicy(ClaimRequestDto claimRequestDto, long customerId) {
-		
-	
-	        // Fetch the policy by ID
-	        InsurancePolicy insurancePolicy = insurancePolicyRepository.findById(claimRequestDto.getPolicyId())
-	                .orElseThrow(() -> new RuntimeException("Policy not found"));
 
-	        // Check if the policy has matured
-	        if (insurancePolicy.getMaturityDate().isAfter(LocalDate.now())) {
-	            throw new RuntimeException("The policy has not yet matured. Claims can only be made after the maturity date.");
-	        }
+		// Fetch the policy by ID
+		InsurancePolicy insurancePolicy = insurancePolicyRepository.findById(claimRequestDto.getPolicyId())
+				.orElseThrow(() -> new RuntimeException("Policy not found"));
 
-	        // Create a new Claim
-	        Claim claim = new Claim();
-	        claim.setClaimAmount(insurancePolicy.getClaimAmount()); // Claim amount is the maturity sum
-	        claim.setBankName(claimRequestDto.getBankName());
-	        claim.setBranchName(claimRequestDto.getBranchName());
-	        claim.setBankAccountId(claimRequestDto.getBankAccountId());
-	        claim.setIfscCode(claimRequestDto.getIfscCode());
-	        claim.setClaimedStatus(ClaimStatus.PENDING.name());
-	        claim.setPolicy(insurancePolicy);
+		// Check if the policy has matured
+		if (insurancePolicy.getMaturityDate().isAfter(LocalDate.now())) {
+			throw new RuntimeException(
+					"The policy has not yet matured. Claims can only be made after the maturity date.");
+		}
 
-	        // Assign the agent handling the policy to the claim
-	        claim.setAgent(insurancePolicy.getAgent());
+		// Create a new Claim
+		Claim claim = new Claim();
+		claim.setClaimAmount(insurancePolicy.getClaimAmount()); // Claim amount is the maturity sum
+		claim.setBankName(claimRequestDto.getBankName());
+		claim.setBranchName(claimRequestDto.getBranchName());
+		claim.setBankAccountId(claimRequestDto.getBankAccountId());
+		claim.setIfscCode(claimRequestDto.getIfscCode());
+		claim.setClaimedStatus(ClaimStatus.PENDING.name());
+		claim.setPolicy(insurancePolicy);
 
-	        // Link the claim to the insurance policy
-	        insurancePolicy.setClaim(claim);
+		// Assign the agent handling the policy to the claim
+		claim.setAgent(insurancePolicy.getAgent());
 
-	        // Save the claim
-	        claimRepository.save(claim);
+		// Link the claim to the insurance policy
+		insurancePolicy.setClaim(claim);
 
-	        return "Claim has been successfully created for policy ID " + claimRequestDto.getPolicyId();
+		// Save the claim
+		claimRepository.save(claim);
+
+		return "Claim has been successfully created for policy ID " + claimRequestDto.getPolicyId();
 	}
 
 	@Override
@@ -579,90 +579,282 @@ private DocumentRepository documentRepository;
 	}
 
 	@Transactional
-	  @Override
-	  public String customerCancelPolicy(ClaimRequestDto claimRequestDto, Long customerId) {
-	      
+	@Override
+	public String customerCancelPolicy(ClaimRequestDto claimRequestDto, Long customerId) {
+
 		if (claimRequestDto == null) {
-	        throw new IllegalArgumentException("ClaimRequestDto cannot be null.");
-	    }
-	    
-	    // Extract policyId and ensure it's not null
-	    Long policyId = claimRequestDto.getPolicyId();
-	    if (policyId == null) {
-	        throw new IllegalArgumentException("Policy ID cannot be null.");
-	    }
-		
+			throw new IllegalArgumentException("ClaimRequestDto cannot be null.");
+		}
+
+		// Extract policyId and ensure it's not null
+		Long policyId = claimRequestDto.getPolicyId();
+		if (policyId == null) {
+			throw new IllegalArgumentException("Policy ID cannot be null.");
+		}
+
 		// Find the policy by its ID
-	      InsurancePolicy policy = insurancePolicyRepository.findById(claimRequestDto.getPolicyId())
-	              .orElseThrow(() -> new AllExceptions.PolicyNotFoundException("Policy not found"));
+		InsurancePolicy policy = insurancePolicyRepository.findById(claimRequestDto.getPolicyId())
+				.orElseThrow(() -> new AllExceptions.PolicyNotFoundException("Policy not found"));
 
-	      // Check if the given customer is associated with the policy
-	      boolean customerExistsInPolicy = policy.getCustomers().stream()
-	              .anyMatch(customer -> customer.getCustomerId() == customerId);
+		// Check if the given customer is associated with the policy
+		boolean customerExistsInPolicy = policy.getCustomers().stream()
+				.anyMatch(customer -> customer.getCustomerId() == customerId);
 
-	      if (!customerExistsInPolicy) {
-	          throw new AllExceptions.CustomerNotFoundException("Customer is not associated with this policy.");
-	      }
+		if (!customerExistsInPolicy) {
+			throw new AllExceptions.CustomerNotFoundException("Customer is not associated with this policy.");
+		}
 
-	      // Check if a claim already exists for the policy
-	      Optional<Claim> existingClaim = claimRepository.findByPolicy(policy);
+		// Check if a claim already exists for the policy
+		Optional<Claim> existingClaim = claimRepository.findByPolicy(policy);
 
-	      // Log or print for debugging purposes
-	      if (existingClaim.isPresent()) {
-	          System.out.println("Claim already exists for the policy, updating it...");
-	      } else {
-	          System.out.println("No existing claim, creating a new one...");
-	      }
+		// Log or print for debugging purposes
+		if (existingClaim.isPresent()) {
+			System.out.println("Claim already exists for the policy, updating it...");
+		} else {
+			System.out.println("No existing claim, creating a new one...");
+		}
 
-	      // If a claim exists and the customer wants to cancel, apply the cancellation logic
-	      Claim claim;
-	      if (existingClaim.isPresent()) {
-	          claim = existingClaim.get();
-	      } else {
-	          // If no claim exists, create a new one
-	          claim = new Claim();
-	          claim.setPolicy(policy);
-	          // Since there's no direct link to the customer, we don't set the customer directly in the claim
-	      }
+		// If a claim exists and the customer wants to cancel, apply the cancellation
+		// logic
+		Claim claim;
+		if (existingClaim.isPresent()) {
+			claim = existingClaim.get();
+		} else {
+			// If no claim exists, create a new one
+			claim = new Claim();
+			claim.setPolicy(policy);
+			// Since there's no direct link to the customer, we don't set the customer
+			// directly in the claim
+		}
 
-	      // Get the policy amount (assume policy has a premiumAmount or totalAmount field)
-	     // double policyAmount = policy.getPremiumAmount();
-	      double policyAmount = policy.getTotalAmountPaid();
-	      // Calculate the claim amount and apply 20% deduction for cancellation
-	      double claimAmount;
-	      if (policy.getMaturityDate().isAfter(LocalDate.now())) {
-	          // Apply 20% deduction if canceled before maturity
-	          double deductionPercentage = Double.parseDouble(keyValueRepository.getValueByKey("deduction_percentage"));
-	          double deductionAmount = policyAmount * (deductionPercentage / 100);
-	          claimAmount = policyAmount - deductionAmount;
+		// Get the policy amount (assume policy has a premiumAmount or totalAmount
+		// field)
+		// double policyAmount = policy.getPremiumAmount();
+		double policyAmount = policy.getTotalAmountPaid();
+		// Calculate the claim amount and apply 20% deduction for cancellation
+		double claimAmount;
+		if (policy.getMaturityDate().isAfter(LocalDate.now())) {
+			// Apply 20% deduction if canceled before maturity
+			double deductionPercentage = Double.parseDouble(keyValueRepository.getValueByKey("deduction_percentage"));
+			double deductionAmount = policyAmount * (deductionPercentage / 100);
+			claimAmount = policyAmount - deductionAmount;
 
-	          // Mark as canceled and set the deduction details
-	          claim.setCancel(true);
-	          System.out.println("Policy canceled before maturity, applying 20% deduction.");
-	      } else {
-	          // No deduction if claimed after maturity
-	          claimAmount = policyAmount;
-	          claim.setCancel(false);  // No cancellation flag after maturity
-	          System.out.println("Policy claimed after maturity, no deduction applied.");
-	      }
+			// Mark as canceled and set the deduction details
+			claim.setCancel(true);
+			System.out.println("Policy canceled before maturity, applying 20% deduction.");
+		} else {
+			// No deduction if claimed after maturity
+			claimAmount = policyAmount;
+			claim.setCancel(false); // No cancellation flag after maturity
+			System.out.println("Policy claimed after maturity, no deduction applied.");
+		}
 
-	      // Set claim details from the request
-	      claim.setClaimAmount(claimAmount);
-	      claim.setBankName(claimRequestDto.getBankName());
-	      claim.setBranchName(claimRequestDto.getBranchName());
-	      claim.setBankAccountId(claimRequestDto.getBankAccountId());
-	      claim.setIfscCode(claimRequestDto.getIfscCode());
-	      claim.setClaimedStatus("PENDING");
+		// Set claim details from the request
+		claim.setClaimAmount(claimAmount);
+		claim.setBankName(claimRequestDto.getBankName());
+		claim.setBranchName(claimRequestDto.getBranchName());
+		claim.setBankAccountId(claimRequestDto.getBankAccountId());
+		claim.setIfscCode(claimRequestDto.getIfscCode());
+		claim.setClaimedStatus("PENDING");
 
-	      // Save the claim in the repository
-	      claimRepository.save(claim);
-	      System.out.println("Claim has been saved: " + claim);
+		// Save the claim in the repository
+		claimRepository.save(claim);
+		System.out.println("Claim has been saved: " + claim);
 
-	      return "Policy cancellation or claim has been created for the customer.";
-	  }
+		return "Policy cancellation or claim has been created for the customer.";
+	}
+
 	@Override
 	public Page<Customer> getAllCustomers(Pageable pageable) {
-	    return customerRepository.findAll(pageable);
+		return customerRepository.findAll(pageable);
+	}
+
+	@Override
+	@Transactional
+	public InsurancePolicyDto buyPolicy(InsurancePolicyDto accountRequestDto, long customerId) {
+
+		// Log the customer ID
+		System.out.println("Customer ID received: " + customerId);
+
+		// Fetch the required entities (InsuranceScheme, Customer, Agent)
+		if (accountRequestDto.getInsuranceSchemeId() == null) {
+			throw new IllegalArgumentException("Insurance Scheme ID must not be null");
+		}
+
+		InsuranceScheme insuranceScheme = insuranceSchemeRepository.findById(accountRequestDto.getInsuranceSchemeId())
+				.orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+						"Sorry, we couldn't find a scheme with ID: " + accountRequestDto.getInsuranceSchemeId()));
+
+		// System.out.println("Insurance Scheme fetched: " + insuranceScheme);
+		// Check if the insurance scheme is active
+		if (!insuranceScheme.isActive()) {
+			throw new APIException(HttpStatus.FORBIDDEN, "The insurance scheme with ID "
+					+ accountRequestDto.getInsuranceSchemeId() + " is not active and cannot be used to buy a policy.");
+		}
+		System.out.println("Insurance Scheme is active");
+		System.out.println("customer checkinh");
+		Customer customer = customerRepository.findById(customerId)
+				.orElseThrow(() -> new AllExceptions.IdNotFoundException(
+						"Sorry, we couldn't find a customer with ID: " + customerId));
+		// System.out.println("Customer fetched: " + customer);
+
+		if (customer == null) {
+			throw new IllegalArgumentException("Customer ID must not be null");
+		}
+
+		// Calculate the customer's age
+		int customerAge = LocalDate.now().getYear() - customer.getDob().getYear();
+		if (customer.getDob().plusYears(customerAge).isAfter(LocalDate.now())) {
+			customerAge--; // Adjust age if the birthday hasn't occurred yet this year
+		}
+
+		// Check customer's age against the scheme's age limits
+		if (customerAge < insuranceScheme.getMinimumAge() || customerAge > insuranceScheme.getMaximumAge()) {
+			throw new APIException(HttpStatus.FORBIDDEN, "Customer with ID " + customerId
+					+ " does not meet the age requirements for the selected insurance scheme.");
+		}
+
+		// Check if the customer is verified
+		if (!customer.isVerified()) {
+			throw new APIException(HttpStatus.FORBIDDEN,
+					"Customer with ID " + customerId + " is not verified and cannot purchase a policy.");
+		}
+
+		Agent agent = agentRepository.findById(accountRequestDto.getAgentId())
+				.orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND,
+						"Sorry, we couldn't find an agent with ID: " + accountRequestDto.getAgentId()));
+		System.out.println("/////////////////////////////////////////////");
+		// Create a new InsurancePolicy and set its properties
+		InsurancePolicy insurancePolicy = new InsurancePolicy();
+		insurancePolicy.getCustomers().add(customer); // Set the customer
+		if (agent != null) {
+			insurancePolicy.setAgent(agent);
+			insurancePolicy.setRegisteredCommission(insuranceScheme.getNewRegistrationCommission());
+		} else {
+			insurancePolicy.setAgent(null);
+			insurancePolicy.setRegisteredCommission(0.0);
+		}
+		insurancePolicy.setPolicyTerm(accountRequestDto.getPolicyTerm());
+		insurancePolicy.setPremiumAmount(accountRequestDto.getPremiumAmount());
+		insurancePolicy.setIssuedDate(LocalDate.now());
+		insurancePolicy.setMaturityDate(insurancePolicy.getIssuedDate().plusYears(accountRequestDto.getPolicyTerm()));
+		insurancePolicy.setInstallmentPeriod(accountRequestDto.getInstallmentPeriod());
+//	    insurancePolicy.setRegisteredCommission(insuranceScheme.getNewRegistrationCommission());
+		insurancePolicy.setInsuranceScheme(insuranceScheme);
+		insurancePolicy.setPolicyStatus(PolicyStatus.PENDING.name());
+
+		// Calculate the sum assured based on the profit ratio
+		double sumAssured = (insurancePolicy.getPremiumAmount() * (insuranceScheme.getProfitRatio() / 100))
+				+ insurancePolicy.getPremiumAmount();
+		insurancePolicy.setClaimAmount(sumAssured);
+		insurancePolicy.setPolicyStatus(PolicyStatus.ACTIVE.name());
+
+		// Determine the number of months based on the premium type
+		long months = accountRequestDto.getInstallmentPeriod();
+		long totalMonths = insurancePolicy.getPolicyTerm() * 12 / months;
+		double installmentAmount = insurancePolicy.getPremiumAmount() / totalMonths;
+		insurancePolicy.setInstallmentPayment(installmentAmount);
+		insurancePolicy.setTotalAmountPaid(0.0);
+
+		// Handle Nominees
+		if (accountRequestDto.getNominees() != null && !accountRequestDto.getNominees().isEmpty()) {
+			List<Nominee> nominees = new ArrayList<>();
+			for (NomineeDto nomineeDto : accountRequestDto.getNominees()) {
+				Nominee nominee = new Nominee();
+				nominee.setNomineeName(nomineeDto.getNomineeName());
+				nominee.setRelationStatus(nomineeDto.getRelationStatus());
+				// nominee.setRelationStatus(nomineeDto.getRelationStatus());
+				nomineeRepository.save(nominee); // Save the nominee
+				nominees.add(nominee);
+			}
+			insurancePolicy.setNominees(nominees);
+		} else {
+			throw new APIException(HttpStatus.NOT_FOUND, "No nominees provided in the request");
+		}
+
+		// Handle Submitted Documents based on Scheme Documents
+		Set<SchemeDocument> schemeDocuments = insuranceScheme.getSchemeDocuments();
+		if (schemeDocuments != null && !schemeDocuments.isEmpty()) {
+			Set<SubmittedDocument> submittedDocuments = new HashSet<>();
+			for (SchemeDocument schemeDoc : schemeDocuments) {
+				boolean documentFound = false;
+
+				// Iterate through submitted documents to find a match based on document name
+				for (SubmittedDocumentDto submittedDto : accountRequestDto.getDocuments()) {
+					if (schemeDoc.getName().equalsIgnoreCase(submittedDto.getDocumentName())) {
+						SubmittedDocument submittedDoc = new SubmittedDocument();
+						submittedDoc.setDocumentName(schemeDoc.getName());
+						submittedDoc.setDocumentStatus(DocumentStatus.PENDING.name()); // Default status
+						submittedDoc.setDocumentImage(submittedDto.getDocumentImage()); // Set the document image from
+						// DTOdocumentRepository.save(submittedDoc); // Save the submitted document
+
+						documentRepository.save(submittedDoc);
+						submittedDocuments.add(submittedDoc);
+						documentFound = true;
+						break;
+					}
+				}
+
+				// If no matching submitted document is found for a required scheme document,
+				// throw an exception
+				if (!documentFound) {
+					throw new APIException(HttpStatus.BAD_REQUEST,
+							"Document for " + schemeDoc.getName() + " is missing.");
+				}
+			}
+			insurancePolicy.setDocuments(submittedDocuments);
+		} else {
+			throw new APIException(HttpStatus.NOT_FOUND, "No scheme documents available for the selected scheme.");
+		}
+
+		InsurancePolicy savedPolicy = insurancePolicyRepository.save(insurancePolicy);
+
+		// Add the policy to the customer's list of policies
+		customer.getInsurancePolicies().add(insurancePolicy);
+		customerRepository.save(customer);
+
+		// Update the agent's total commission
+		double currentCommission = agent.getTotalCommission();
+		agent.setTotalCommission(currentCommission + insuranceScheme.getNewRegistrationCommission());
+		agentRepository.save(agent);
+
+		// Convert saved policy to DTO
+		InsurancePolicyDto policyDto = convertToDto(savedPolicy);
+
+		return policyDto;
+	}
+
+	private InsurancePolicyDto convertToDto(InsurancePolicy insurancePolicy) {
+		InsurancePolicyDto dto = new InsurancePolicyDto();
+		dto.setInsuranceId(insurancePolicy.getInsuranceId());
+		dto.setInsuranceSchemeId(insurancePolicy.getInsuranceScheme().getInsuranceSchemeId());
+		dto.setPremiumAmount(insurancePolicy.getPremiumAmount());
+		dto.setPolicyTerm(insurancePolicy.getPolicyTerm());
+		dto.setInstallmentPeriod(insurancePolicy.getInstallmentPeriod());
+		dto.setNominees(insurancePolicy.getNominees().stream().map(nominee -> {
+			NomineeDto nomineeDto = new NomineeDto();
+			nomineeDto.setNomineeName(nominee.getNomineeName());
+			nomineeDto.setRelationStatus(nominee.getRelationStatus());
+			return nomineeDto;
+		}).collect(Collectors.toList()));
+//		dto.setDocuments(insurancePolicy.getDocuments().stream().map(document -> {
+//			SubmittedDocumentDto documentDto = new SubmittedDocumentDto();
+//			documentDto.setDocumentName(document.getDocumentName());
+//			documentDto.setDocumentStatus(document.getDocumentStatus());
+//			return documentDto;
+//		}).collect(Collectors.toSet()));
+		
+		dto.setDocuments(insurancePolicy.getDocuments().stream().map(document -> {
+		    SubmittedDocumentDto documentDto = new SubmittedDocumentDto();
+		    documentDto.setDocumentName(document.getDocumentName());
+		    documentDto.setDocumentStatus(document.getDocumentStatus());
+		    return documentDto;
+		}).collect(Collectors.toList()));  // Collect as a List if setDocuments expects a List
+
+
+		System.out.println("Policy created with ID: " + insurancePolicy.getInsuranceId());
+
+		return dto;
 	}
 
 }

@@ -134,12 +134,23 @@ public class CustomerController {
 //	      
 //	    }
 
+//	@PostMapping("/{customerId}/buy-policy")
+//	public ResponseEntity<String> buyPolicy(@RequestBody InsurancePolicyDto accountRequestDto,
+//			@PathVariable(name = "customerId") long customerId) {
+//		return new ResponseEntity<String>(customerService.buyPolicy(accountRequestDto, customerId), HttpStatus.OK);
+//
+//	}
+	
 	@PostMapping("/{customerId}/buy-policy")
-	public ResponseEntity<String> buyPolicy(@RequestBody InsurancePolicyDto accountRequestDto,
+	public ResponseEntity<InsurancePolicyDto> buyPolicy(@RequestBody InsurancePolicyDto accountRequestDto,
 			@PathVariable(name = "customerId") long customerId) {
-		return new ResponseEntity<String>(customerService.buyPolicy(accountRequestDto, customerId), HttpStatus.OK);
+		System.out.println("starting buy policy");
+		
+		return new ResponseEntity<>(customerService.buyPolicy(accountRequestDto, customerId), HttpStatus.OK);
 
 	}
+	
+	
 
 	@PostMapping("/buyWithoutAgent")
 	public ResponseEntity<String> buyPolicyWithoutAgent(@RequestBody @Valid InsurancePolicyDto accountRequestDto,

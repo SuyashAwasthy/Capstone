@@ -19,7 +19,31 @@ public class User {
     private String email;
     private String password;
     
-    @ManyToMany(fetch = FetchType.EAGER)
+    @Column(name = "first_name")
+    private String firstName;
+    
+    
+    public String getFirstName() {
+		return firstName;
+	}
+
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
+	
+	@Column(name = "last_name")
+    private String lastName;
+    
+    
+    public String getLastName() {
+		return lastName;
+	}
+
+	public void setLastName(String lastName) {
+		this.lastName = lastName;
+	}
+
+	@ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_roles",  // Name of the join table
         joinColumns = @JoinColumn(name = "user_id"),

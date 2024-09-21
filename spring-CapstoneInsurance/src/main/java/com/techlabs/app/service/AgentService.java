@@ -8,8 +8,12 @@ import com.techlabs.app.dto.AgentResponseDto;
 import com.techlabs.app.dto.ChangePasswordDto;
 import com.techlabs.app.dto.ClaimRequestDto;
 import com.techlabs.app.dto.ClaimResponseDto;
+import com.techlabs.app.dto.InsurancePolicyDto;
 import com.techlabs.app.entity.Customer;
 import com.techlabs.app.entity.InsurancePolicy;
+import com.techlabs.app.util.PagedResponse;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 public interface AgentService {
 
@@ -40,6 +44,9 @@ public interface AgentService {
 	InsurancePolicy registerPolicy(Long agentId, Map<String, Object> policyDetails);
 
 	List<Customer> getAllCustomers();
+	
+//	PagedResponse<InsurancePolicyDto> getAllPoliciesUnderAnAgent(Long id, Long customerId, String name,
+//            String policyStatus, int page, int size, HttpServletRequest request);
 
 
 }

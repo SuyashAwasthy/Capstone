@@ -27,6 +27,7 @@ import com.techlabs.app.dto.ClaimRequestDto;
 import com.techlabs.app.dto.ContactFormRequestDto;
 import com.techlabs.app.dto.ContactReplyRequestDto;
 import com.techlabs.app.dto.CustomerRequestDto;
+import com.techlabs.app.dto.InsurancePolicyDto;
 import com.techlabs.app.entity.ContactMessage;
 import com.techlabs.app.entity.Customer;
 import com.techlabs.app.entity.InsurancePolicy;
@@ -35,7 +36,11 @@ import com.techlabs.app.service.AgentService;
 import com.techlabs.app.service.ContactFormService;
 import com.techlabs.app.service.CustomerService;
 import com.techlabs.app.service.EmployeeService;
+import com.techlabs.app.service.InsurancePolicyService;
+import com.techlabs.app.util.PagedResponse;
 
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -46,6 +51,9 @@ public class AgentController {
 	
 	@Autowired
 	private AgentService agentService;
+	
+	@Autowired
+	private InsurancePolicyService policyService;
 
 	// Register a new agent
 	@PostMapping("/register")
@@ -134,22 +142,22 @@ public class AgentController {
 //        return ResponseEntity.noContent().build(); 
 //    } 
 	
-//	@GetMapping("/get-all-customers")
-//	public ResponseEntity<List<Customer>> getAllCustomers() {
-//		List<Customer> customers = customerService.getAllCustomers();
-//		return new ResponseEntity<>(customers, HttpStatus.OK);
-//	}
-	
 	@GetMapping("/get-all-customers")
-	public ResponseEntity<Page<Customer>> getAllCustomers(
-	        @RequestParam(defaultValue = "0") int page,
-	        @RequestParam(defaultValue = "10") int size,
-	        @RequestParam(defaultValue = "id") String sortBy) {
-	    
-	    Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
-	    Page<Customer> customers = customerService.getAllCustomers(pageable);
-	    return new ResponseEntity<>(customers, HttpStatus.OK);
+	public ResponseEntity<List<Customer>> getAllCustomers() {
+		List<Customer> customers = customerService.getAllCustomers();
+		return new ResponseEntity<>(customers, HttpStatus.OK);
 	}
+	
+//	@GetMapping("/get-all-customers")
+//	public ResponseEntity<Page<Customer>> getAllCustomers(
+//	        @RequestParam(defaultValue = "0") int page,
+//	        @RequestParam(defaultValue = "10") int size,
+//	        @RequestParam(defaultValue = "id") String sortBy) {
+//	    
+//	    Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
+//	    Page<Customer> customers = customerService.getAllCustomers(pageable);
+//	    return new ResponseEntity<>(customers, HttpStatus.OK);
+//	}
 
 	
 	@Autowired
@@ -196,6 +204,22 @@ public class AgentController {
 //        Page<Policy> policies = agentService.getAgentPolicies(agentId, pageable);
 //        return new ResponseEntity<>(policies, HttpStatus.OK);
 //    }
+    
+  //  @Secured("AGENT")
+    @Operation(summary = "Get All Claints Of An Agent")
+    @GetMapping("/all-clients")
+    public ResponseEntity<PagedResponse<InsurancePolicyDto>> getAllPoliciesUnderAnAgent(
+        @RequestParam(required = false) Long id, @RequestParam(required = false) Long customerId,
+        @RequestParam(required = false) String name, @RequestParam(required = false) String policyStatus,
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "10") int size,
+        HttpServletRequest request) {
+    //  logger.info("Fetching All The Policies");
+      PagedResponse<InsurancePolicyDto> policies = policyService.getAllPoliciesUnderAnAgent(id, customerId, name,
+          policyStatus, page, size,request);
+
+      return new ResponseEntity<>(policies, HttpStatus.OK);
+    }
 
 
 }

@@ -16,6 +16,9 @@ public class NomineeDto {
 	public NomineeDto(Nominee n) {
 		// TODO Auto-generated constructor stub
 	}
+	public NomineeDto() {
+		// TODO Auto-generated constructor stub
+	}
 	public String getNomineeName() {
 		return nomineeName;
 	}

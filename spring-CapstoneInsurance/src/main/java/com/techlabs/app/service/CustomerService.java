@@ -59,7 +59,7 @@ public interface CustomerService {
 
 	String createInsurancePolicy(InsurancePolicyDto insurancePolicyDto);
 
-	String buyPolicy(InsurancePolicyDto accountRequestDto, long customerId);
+//	String buyPolicy(InsurancePolicyDto accountRequestDto, long customerId);
 
 	String buyPolicyWithoutAgent(InsurancePolicyDto accountRequestDto, long customerId);
 
@@ -70,6 +70,9 @@ public interface CustomerService {
 	String customerCancelPolicy(ClaimRequestDto claimRequestDto, Long customerId);
 
 	Page<Customer> getAllCustomers(Pageable pageable);
+	
+	InsurancePolicyDto buyPolicy(InsurancePolicyDto accountRequestDto, long customerId);
+
 
 	
 	//String buyPolicy(PolicyAccountRequestDto accountRequestDto, long customerId);
